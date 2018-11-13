@@ -1,0 +1,1 @@
+CREATE TABLE `notes` (`id` int(11) NOT NULL AUTO_INCREMENT, `steamid` varchar(32) DEFAULT NULL, `note` varchar(256) DEFAULT NULL, `author` varchar(128) DEFAULT NULL, `authorid` varchar(32) DEFAULT NULL, `ndate` varchar(32) DEFAULT NULL, PRIMARY KEY (`id`), UNIQUE KEY `id_UNIQUE` (`id`));
