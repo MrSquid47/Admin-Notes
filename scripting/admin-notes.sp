@@ -41,7 +41,7 @@ public void OnPluginStart()
 	RegAdminCmd("sm_notes", Command_getnote, ADMFLAG_BAN, "List player notes");
 	RegAdminCmd("sm_listnotes", Command_listnotes, ADMFLAG_BAN, "List players with notes");
 	
-	CreateTimer(120.0, Timer_reconnect, _, TIMER_REPEAT);
+	CreateTimer(240.0, Timer_reconnect, _, TIMER_REPEAT);
 }
 
 public void OnClientPostAdminCheck(int client)
@@ -163,7 +163,6 @@ void CB_DB_GetNote(Database rDB, DBResultSet rs, char[] error, int client)
 			PrintToChat(client, "%s\nNote %i of %i:\n%s\nAuthor: %s %s\nDate: %s\n%s", linebreak, notenums[client], rs.RowCount, note, author, authorid, ndate, linebreak);
 		} else {
 			ShowMenu(client, note, author, authorid, ndate);
-			PrintToConsole(client, "%s\nNote %i of %i:\n%s\nAuthor: %s %s\nDate: %s\n%s", linebreak, notenums[client], rs.RowCount, note, author, authorid, ndate, linebreak);
 		}
 	} else {
 		PrintToChat(client, "[AN] There are no notes for this player.");
@@ -309,16 +308,25 @@ void DB_PrintNotes(int client, int target)
 
 public Action Command_makenote(int client, int args)
 {
-	if (args != 2)
+	if (args < 2)
 	{
 		ReplyToCommand(client, "Usage: sm_makenote <#userid|name> [note]");
 		return Plugin_Handled;
 	}
-	char arg1[32], arg2[128];
+	char arg1[32], notearg[128], rawnote[128];
 	
 	/* Get the arguments */
 	GetCmdArg(1, arg1, sizeof(arg1));
-	GetCmdArg(2, arg2, sizeof(arg2));
+	for (int i = 2; i <= args; i++)
+	{
+		GetCmdArg(i, notearg, sizeof(notearg));
+		if (i != 2)
+		{
+			Format(rawnote, sizeof(rawnote), "%s %s", rawnote, notearg);
+		} else {
+			strcopy(rawnote, sizeof(rawnote), notearg);
+		}
+	}
 	
 	//get target
 	int target = 0;
@@ -332,10 +340,22 @@ public Action Command_makenote(int client, int args)
 	
 	
 	char note[256];
-	EncodeBase64(note, sizeof(note), arg2);
+	EncodeBase64(note, sizeof(note), rawnote);
 	
 	ReplyToCommand(client, "[AN] Making note");
 	DB_MakeNote(client, target, note);
+	
+	// announce
+	for (int i = 1; i < MaxClients; i++)
+	{
+		if (IsClientInGame(i))
+		{
+			if (CheckCommandAccess(i, "sm_notes", ADMFLAG_GENERIC, false))
+			{
+				CPrintToChat(i, "[AN] '{gold}%N{white}' made a note on player '{gold}%N{white}': {green}%s", client, target, rawnote);
+			}
+		}
+	}
 	
 	return Plugin_Handled;
 }
