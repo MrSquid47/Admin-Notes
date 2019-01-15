@@ -3,7 +3,7 @@
 #define DEBUG
 
 #define PLUGIN_AUTHOR "MrSquid"
-#define PLUGIN_VERSION "1.0.5"
+#define PLUGIN_VERSION "1.0.6"
 
 #include <sourcemod>
 #include <sdktools>
@@ -29,6 +29,7 @@ int erasenums[MAXPLAYERS + 1];
 int erasetargets[MAXPLAYERS + 1];
 int notetargets[MAXPLAYERS + 1];
 bool notechat[MAXPLAYERS + 1];
+bool cmdSrcChat[MAXPLAYERS + 1];
 
 public void OnPluginStart()
 {
@@ -90,7 +91,7 @@ void CB_checkAuth(Database rDB, DBResultSet rs, char[] error, int client)
 		for (int i = 1; i < erasenums[client]; i++)
 		{
 			if (!rs.FetchRow()) {
-				ReplyToCommand(client, "[AN] The specified note does not exist.");
+				CmdReply(client, "[AN] The specified note does not exist.");
 				return;
 			}
 		}
@@ -104,7 +105,7 @@ void CB_checkAuth(Database rDB, DBResultSet rs, char[] error, int client)
 		if (StrEqual(auth, sAuth)) {
 			DB_EraseNote(client, erasetargets[client]);
 		} else {
-			ReplyToCommand(client, "[AN] You do not have permission to erase this note.");
+			CmdReply(client, "[AN] You do not have permission to erase this note.");
 		}
 	}
 }
@@ -113,7 +114,7 @@ void checkAuth(int client)
 {
 	if (db == INVALID_HANDLE) {
 		LogError("CheckAuth Failed: Not connected to database!");
-		ReplyToCommand(client, "[AN] UNABLE TO CONFIRM AUTH!");
+		CmdReply(client, "[AN] Not connected to database!");
 		return;
 	}
 	
@@ -124,6 +125,16 @@ void checkAuth(int client)
 	FormatEx(sQuery, sizeof(sQuery), "SELECT b.authorid FROM notes b WHERE b.steamid = '%s' ORDER BY id;", sAuth);
 	
 	db.Query(CB_checkAuth, sQuery, client);
+}
+
+void CmdReply(int client, char[] reply)
+{
+	if (cmdSrcChat[client])
+	{
+		PrintToChat(client, reply);
+	} else {
+		PrintToConsole(client, reply);
+	}
 }
 
 void CB_DB_GetNote(Database rDB, DBResultSet rs, char[] error, int client)
@@ -143,7 +154,7 @@ void CB_DB_GetNote(Database rDB, DBResultSet rs, char[] error, int client)
 		for (int i = 1; i < notenums[client]; i++)
 		{
 			if (!rs.FetchRow()) {
-				ReplyToCommand(client, "[AN] The specified note does not exist.");
+				CmdReply(client, "[AN] The specified note does not exist.");
 			}
 		}
 		
@@ -160,17 +171,14 @@ void CB_DB_GetNote(Database rDB, DBResultSet rs, char[] error, int client)
 		
 		if (notechat[client] == true)
 		{
-			ReplyToCommand(client, "%s\nNote %i of %i:\n%s\nAuthor: %s %s\nDate: %s\n%s", linebreak, notenums[client], rs.RowCount, note, author, authorid, ndate, linebreak);
+			char buf[512];
+			Format(buf, sizeof(buf), "%s\nNote %i of %i:\n%s\nAuthor: %s %s\nDate: %s\n%s", linebreak, notenums[client], rs.RowCount, note, author, authorid, ndate, linebreak);
+			CmdReply(client, buf);
 		} else {
 			ShowMenu(client, note, author, authorid, ndate);
 		}
 	} else {
-		if (client != 0)
-		{
-			PrintToChat(client, "[AN] There are no notes for this player.");
-		} else {
-			ReplyToCommand(client, "[AN] There are no notes for this player.");
-		}
+		CmdReply(client, "[AN] There are no notes for this player.");
 	}
 	
 	delete rs;
@@ -178,7 +186,7 @@ void CB_DB_GetNote(Database rDB, DBResultSet rs, char[] error, int client)
 
 void CB_DB_MakeNote(Database rDB, DBResultSet rs, char[] error, int client)
 {
-	ReplyToCommand(client, "[AN] The note has been saved.");
+	CmdReply(client, "[AN] The note has been saved.");
 	delete rs;
 }
 
@@ -217,7 +225,7 @@ void CB_DB_EraseNote(Database rDB, DBResultSet rs, char[] error, int client)
 		for (int i = 1; i < erasenums[client]; i++)
 		{
 			if (!rs.FetchRow()) {
-				ReplyToCommand(client, "[AN] The specified note does not exist.");
+				CmdReply(client, "[AN] The specified note does not exist.");
 				return;
 			}
 		}
@@ -230,9 +238,9 @@ void CB_DB_EraseNote(Database rDB, DBResultSet rs, char[] error, int client)
 		SQL_FastQuery(db, query);
 		SQL_UnlockDatabase(db);
 		
-		ReplyToCommand(client, "[AN] Note erased.");
+		CmdReply(client, "[AN] Note erased.");
 	} else {
-		ReplyToCommand(client, "[AN] There are no notes for this player.");
+		CmdReply(client, "[AN] There are no notes for this player.");
 	}
 	
 	delete rs;
@@ -242,7 +250,7 @@ void DB_MakeNote(int client, int target, char[] note)
 {
 	if (db == INVALID_HANDLE) {
 		LogError("MakeNote Failed: Not connected to database!");
-		ReplyToCommand(client, "[AN] Not connected to database!");
+		CmdReply(client, "[AN] Not connected to database!");
 		return;
 	}
 	
@@ -278,7 +286,7 @@ void DB_GetNote(int client, int target)
 {
 	if (db == INVALID_HANDLE) {
 		LogError("GetNote Failed: Not connected to database!");
-		ReplyToCommand(client, "[AN] Not connected to database!");
+		CmdReply(client, "[AN] Not connected to database!");
 		return;
 	}
 	
@@ -295,7 +303,7 @@ void DB_EraseNote(int client, int target)
 {
 	if (db == INVALID_HANDLE) {
 		LogError("EraseNote Failed: Not connected to database!");
-		ReplyToCommand(client, "[AN] Not connected to database!");
+		CmdReply(client, "[AN] Not connected to database!");
 		return;
 	}
 	
@@ -361,6 +369,13 @@ public Action Command_makenote(int client, int args)
 	EncodeBase64(note, sizeof(note), rawnote);
 	
 	ReplyToCommand(client, "[AN] Making note");
+	if (GetCmdReplySource() == SM_REPLY_TO_CHAT)
+	{
+		cmdSrcChat[client] = true;
+	} else {
+		cmdSrcChat[client] = false;
+	}
+	
 	DB_MakeNote(client, target, note);
 	
 	// announce
@@ -416,6 +431,14 @@ public Action Command_getnote(int client, int args)
 	
 	notenums[client] = iarg2;
 	notetargets[client] = target;
+	
+	if (GetCmdReplySource() == SM_REPLY_TO_CHAT)
+	{
+		cmdSrcChat[client] = true;
+	} else {
+		cmdSrcChat[client] = false;
+	}
+	
 	if (notechat[client] == true)
 		ReplyToCommand(client, "[AN] Retrieving note");
 	DB_GetNote(client, target);
@@ -464,6 +487,13 @@ public Action Command_erasenote(int client, int args)
 	
 	erasenums[client] = iarg2;
 	ReplyToCommand(client, "[AN] Erasing note");
+	
+	if (GetCmdReplySource() == SM_REPLY_TO_CHAT)
+	{
+		cmdSrcChat[client] = true;
+	} else {
+		cmdSrcChat[client] = false;
+	}
 	
 	// CHECK PERMISSIONS
 	if (client != 0)
@@ -524,12 +554,13 @@ public int Menu_Handler(Menu MenuHandle, MenuAction action, int client, int num)
 			MenuHandle.GetItem(num, info, sizeof(info));
 			Format(url, sizeof(url), "https://steamcommunity.com/profiles/%s", info);
 			ShowMOTDPanel(client, "Profile", url, MOTDPANEL_TYPE_URL);
+			FakeClientCommand(client, "sm_notes #%i %i menu", GetClientUserId(notetargets[client]), notenums[client]);
 		} else if (num == 3)
 		{
-			ClientCommand(client, "sm_notes #%i %i menu", GetClientUserId(notetargets[client]), notenums[client] - 1);
+			FakeClientCommand(client, "sm_notes #%i %i menu", GetClientUserId(notetargets[client]), notenums[client] - 1);
 		} else if (num == 4)
 		{
-			ClientCommand(client, "sm_notes #%i %i menu", GetClientUserId(notetargets[client]), notenums[client] + 1);
+			FakeClientCommand(client, "sm_notes #%i %i menu", GetClientUserId(notetargets[client]), notenums[client] + 1);
 		}
 	} else if (action == MenuAction_End)
 		delete MenuHandle;
