@@ -6,7 +6,6 @@
 #define PLUGIN_VERSION "1.0.6"
 
 #include <sourcemod>
-#include <sdktools>
 #include <base64>
 #include <morecolors>
 
